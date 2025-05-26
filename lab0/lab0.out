@@ -1,0 +1,13 @@
+job 6232133 is starting on gpub051.delta.ncsa.illinois.edu
+
+
+There is 1 device supporting CUDA
+Device 0 name: NVIDIA A40
+ Computational Capabilities: 8.6
+ Maximum global memory size: 47608692736
+ Maximum constant memory size: 65536
+ Maximum shared memory size per block: 49152
+ Maximum block dimensions: 1024 x 1024 x 64
+ Maximum grid dimensions: 2147483647 x 65535 x 65535
+ Warp size: 32
+Number of SMs: 84

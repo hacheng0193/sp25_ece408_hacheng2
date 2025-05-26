@@ -1,0 +1,204 @@
+#include <cmath>
+#include <iostream>
+#include "gpu-new-forward.h"
+#include "matmul.h"
+#include <cublas_v2.h>
+
+#define PERMUTE_BLOCK_SIZE 256
+#define tile_width 16
+__global__ void matrix_unrolling_kernel(const float *input, float *output,
+                                        const int Batch, const int Channel,
+                                        const int Height, const int Width,
+                                        const int K) {
+    /*
+    Modify this function to implement the input matrix unrolling kernel.
+
+    Function paramter definitions:
+    input - input
+    output - output
+    Batch - batch_size (number of images in x)
+    Channel - number of input feature maps
+    Height - input height dimension
+    Width - input width dimension
+    K - kernel height and width (K x K)
+    */
+    const int Height_out = Height - K + 1;
+    const int Width_out = Width - K + 1;
+    (void)Height_out; // silence declared but never referenced warning. remove this line when you start working
+    (void)Width_out; // silence declared but never referenced warning. remove this line when you start working
+
+    // We have some nice #defs for you below to simplify indexing. Feel free to use them, or create your own.
+    // An example use of these macros:
+    // float a = in_4d(0,0,0,0)
+
+    #define in_4d(i3, i2, i1, i0) input[(i3) * (Channel * Height * Width) + (i2) * (Height * Width) + (i1) * (Width) + i0]
+
+    // TODO: Insert your input matrix unrolling kernel code here
+    size_t Width_unrolled = Batch*Height_out*Width_out;
+    size_t W_grid = ceil(1.0*Width_out/tile_width);
+
+    size_t b = blockIdx.z;
+    size_t h = blockIdx.y * tile_width + threadIdx.y;
+    size_t w = blockIdx.x * tile_width + threadIdx.x;
+    
+    size_t col_unroll = b * (Height_out * Width_out) + (h * Width_out + w);
+    if(h<Height_out && w<Width_out){
+        for (int c = 0; c < Channel; ++c) { // for each input channel
+            size_t w_base = c*(K*K); // per-channel offset for smallest X_unroll index
+            for (int p = 0; p < K; ++p){// for each element of KxK filter (two loops)
+                for (int q = 0; q < K; ++q) {
+                    // for each thread (each output value, two loops)
+                    size_t row_unroll = w_base+p*K+q;
+                    output[row_unroll*Width_unrolled+col_unroll] = in_4d(b,c,h+p,w+q);// copy input pixels
+                }
+            }
+        }
+    }
+    
+    #undef in_4d
+}
+
+
+// Permutes the matmul result.
+// The output feature map after matmul is of shape Map_out x Batch x Height_out x Width_out,
+// and we need to permute it into Batch x Map_out x Height_out x Width_out.
+// You don't need to modify this kernel.
+__global__ void matrix_permute_kernel(const float *input, float *output, int Map_out,
+                                      int Batch, int image_size) {
+    int b = blockIdx.y;
+    int x = blockIdx.x * blockDim.x + threadIdx.x;
+    if (x < image_size) {
+        for (int m = 0; m < Map_out; m++) {
+            output[b * Map_out * image_size + m * image_size + x] =
+                    input[m * Batch * image_size + b * image_size + x];
+        }
+    }
+}
+
+__host__ void GPUInterface::conv_forward_gpu_prolog(const float *host_output, const float *host_input, const float *host_mask, float **device_output_ptr, float **device_input_ptr, float **device_mask_ptr, const int Batch, const int Map_out, const int Channel, const int Height, const int Width, const int K)
+{
+    // TODO: Allocate memory and copy over the relevant data structures to the GPU
+    printf("Task: op_4\n");
+    size_t input_size = Batch * Channel * Height * Width * sizeof(float);
+    size_t output_size = Batch * Map_out * (Height - K + 1) * (Width - K + 1) * sizeof(float);
+    size_t mask_size = Map_out * Channel * K * K * sizeof(float);  
+
+    cudaMalloc(device_input_ptr, input_size);
+    cudaMalloc(device_output_ptr, output_size);
+    cudaMalloc(device_mask_ptr, mask_size);
+
+    cudaMemcpy(*device_input_ptr, host_input, input_size, cudaMemcpyHostToDevice);
+    cudaMemcpy(*device_mask_ptr, host_mask, mask_size, cudaMemcpyHostToDevice);
+    // We pass double pointers for you to initialize the relevant device pointers,
+    //  which are passed to the other two functions.
+
+    // Useful snippet for error checking
+    cudaError_t error = cudaGetLastError();
+    if(error != cudaSuccess)
+    {
+        std::cout<<"CUDA error: "<<cudaGetErrorString(error)<<std::endl;
+        exit(-1);
+    }
+
+}
+
+
+__host__ void GPUInterface::conv_forward_gpu(float *device_output, const float *device_input, const float *device_mask, const int Batch, const int Map_out, const int Channel, const int Height, const int Width, const int K)
+{
+    const int Height_out = Height - K + 1;
+    const int Width_out = Width - K + 1;
+    const int Height_unrolled = Channel * K * K;
+    const int Width_unrolled = Batch * Height_out * Width_out;
+
+    float *unrolled_matrix;  // Pointer to device memory for storing the unrolled matrix
+    float *matmul_output;    // Pointer to device memory for storing the result of matrix multiplication
+    cudaMalloc((void**)&unrolled_matrix, (size_t) Height_unrolled * Width_unrolled * sizeof(float));
+    cudaMalloc((void**)&matmul_output, (Batch * Map_out * Height_out * Width_out) * sizeof(float));
+
+    // TODO: Set the kernel dimensions and call the matrix unrolling kernel.
+    size_t W_grid = ceil(1.0*Width_out/tile_width);
+    size_t H_grid = ceil(1.0*Height_out/tile_width);
+
+    dim3 DimBlock(tile_width,tile_width,1);
+    dim3 DimGrid(W_grid, H_grid,Batch);
+    matrix_unrolling_kernel<<<DimGrid,DimBlock>>>(
+        device_input,unrolled_matrix,Batch,Channel,Height,Width,K
+    );
+    
+
+    // Matrix multiplication and permutation. 
+    // Using cuBLAS to do matmul
+    // Multiply the mask with the unrolled matrix
+
+    // cuBLAS variables
+    cublasHandle_t handle;
+    cublasCreate(&handle);
+
+    // A=Mask(row-major): Map_out*Height_unrolled
+    // B=Unrolled_Input(row-major): Height_unrolled*Width_unrolled
+    // C=Output: Map_out*Width_unrolled
+    // M = Map_out, N = Width_unrolled, K = Height_unrolled
+    // C = alpha*A*B+beta*C
+    float alpha = 1.0f;
+    float beta = 0.0f;  
+    // C = A * B in row-major
+    // but cublas will treat as column major, so actually compute
+    // TC = TB*TA
+    cublasSgemm(handle,
+            CUBLAS_OP_N, CUBLAS_OP_N,
+            Width_unrolled, Map_out, Height_unrolled,
+            &alpha,
+            unrolled_matrix, Width_unrolled,  // actually B, row-major
+            device_mask, Height_unrolled,      // actually A, row-major
+            &beta,
+            matmul_output, Width_unrolled);    // C, stored row-major
+
+    
+    // Permute the result of matrix multiplication
+    const int out_image_size = Height_out * Width_out;
+    dim3 permute_kernel_grid_dim((out_image_size - 1) / PERMUTE_BLOCK_SIZE + 1, Batch, 1);
+    matrix_permute_kernel<<<permute_kernel_grid_dim, PERMUTE_BLOCK_SIZE>>>(
+        matmul_output, device_output, Map_out, Batch, out_image_size
+    );
+    cudaDeviceSynchronize();
+
+    cudaFree(matmul_output);
+    cudaFree(unrolled_matrix);
+}
+
+
+__host__ void GPUInterface::conv_forward_gpu_epilog(float *host_output, float *device_output, float *device_input, float *device_mask, const int Batch, const int Map_out, const int Channel, const int Height, const int Width, const int K)
+{
+    // TODO: Copy the output back to host
+    size_t input_size = Batch*Channel*Height*Width*sizeof(float);
+    size_t output_size = Batch*Map_out*(Height - K + 1)*(Width - K + 1)*sizeof(float);
+    cudaMemcpy(host_output, device_output, output_size, cudaMemcpyDeviceToHost);
+    
+    // TODO: Free device memory
+    cudaFree(device_output);
+    cudaFree(device_input);
+    cudaFree(device_mask);
+}
+
+
+__host__ void GPUInterface::get_device_properties()
+{
+    int deviceCount;
+    cudaGetDeviceCount(&deviceCount);
+
+    for(int dev = 0; dev < deviceCount; dev++)
+    {
+        cudaDeviceProp deviceProp;
+        cudaGetDeviceProperties(&deviceProp, dev);
+
+        std::cout<<"Device "<<dev<<" name: "<<deviceProp.name<<std::endl;
+        std::cout<<"Computational capabilities: "<<deviceProp.major<<"."<<deviceProp.minor<<std::endl;
+        std::cout<<"Max Global memory size: "<<deviceProp.totalGlobalMem<<std::endl;
+        std::cout<<"Max Constant memory size: "<<deviceProp.totalConstMem<<std::endl;
+        std::cout<<"Max Shared memory size per block: "<<deviceProp.sharedMemPerBlock<<std::endl;
+        std::cout<<"Max threads per block: "<<deviceProp.maxThreadsPerBlock<<std::endl;
+        std::cout<<"Max block dimensions: "<<deviceProp.maxThreadsDim[0]<<" x, "<<deviceProp.maxThreadsDim[1]<<" y, "<<deviceProp.maxThreadsDim[2]<<" z"<<std::endl;
+        std::cout<<"Max grid dimensions: "<<deviceProp.maxGridSize[0]<<" x, "<<deviceProp.maxGridSize[1]<<" y, "<<deviceProp.maxGridSize[2]<<" z"<<std::endl;
+        std::cout<<"Warp Size: "<<deviceProp.warpSize<<std::endl;
+    }
+}

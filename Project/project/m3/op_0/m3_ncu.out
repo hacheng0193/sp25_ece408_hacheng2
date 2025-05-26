@@ -1,0 +1,25 @@
+Test batch size: 10000
+Loading fashion-mnist data...Done
+Loading model...Done
+Conv-GPU==
+==PROF== Connected to process 3491295 (/u/hcheng7/ece408git/Project/m3)
+==PROF== Profiling "prefn_marker_kernel()" - 0: 0%....50%....100% - 34 passes
+mask size (bytes): 784
+Task: op_0
+==PROF== Profiling "matmul_conv_fused_with_consta..." - 1: 0%....50%....100% - 34 passes
+==PROF== Profiling "do_not_remove_this_kernel()" - 2: 0%....50%....100% - 34 passes
+Layer Time: 23109 ms
+Op Time: 22930.8 ms
+Conv-GPU==
+==PROF== Profiling "prefn_marker_kernel()" - 3: 0%....50%....100% - 34 passes
+mask size (bytes): 12544
+Task: op_0
+==PROF== Profiling "matmul_conv_fused_with_consta..." - 4: 0%....50%....100% - 34 passes
+==PROF== Profiling "do_not_remove_this_kernel()" - 5: 0%....50%....100% - 34 passes
+Layer Time: 23282.4 ms
+Op Time: 23154.8 ms
+
+Test Accuracy: 0.8714
+
+==PROF== Disconnected from process 3491295
+==PROF== Report: /u/hcheng7/ece408git/Project/analysis_file.ncu-rep

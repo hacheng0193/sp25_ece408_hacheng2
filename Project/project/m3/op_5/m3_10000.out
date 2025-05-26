@@ -1,0 +1,14 @@
+Test batch size: 10000
+Loading fashion-mnist data...Done
+Loading model...Done
+Conv-GPU==
+Task op_5 with __half2
+Layer Time: 204.233 ms
+Op Time: 32.4844 ms
+Conv-GPU==
+Task op_5 with __half2
+Layer Time: 157.555 ms
+Op Time: 28.6796 ms
+
+Test Accuracy: 0.8713
+

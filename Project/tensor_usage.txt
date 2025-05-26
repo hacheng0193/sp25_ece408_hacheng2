@@ -1,0 +1,59 @@
+Test batch size: 10000
+Loading fashion-mnist data...Done
+Loading model...Done
+Conv-GPU==
+==PROF== Connected to process 503971 (/u/hcheng7/ece408git/Project/m3)
+==PROF== Profiling "prefn_marker_kernel()" - 0: 0%....50%....100% - 1 pass
+==PROF== Profiling "matmul_conv_fused_tensor_cores" - 1: 0%....50%....100% - 1 pass
+==PROF== Profiling "do_not_remove_this_kernel()" - 2: 0%....50%....100% - 1 pass
+Task: rep_1
+Layer Time: 285.758 ms
+Op Time: 115.282 ms
+Conv-GPU==
+==PROF== Profiling "prefn_marker_kernel()" - 3: 0%....50%....100% - 1 pass
+==PROF== Profiling "matmul_conv_fused_tensor_cores" - 4: 0%....50%....100% - 1 pass
+==PROF== Profiling "do_not_remove_this_kernel()" - 5: 0%....50%....100% - 1 pass
+Task: rep_1
+Layer Time: 211.027 ms
+Op Time: 83.1635 ms
+
+Test Accuracy: 0.8714
+
+==PROF== Disconnected from process 503971
+[503971] m3@127.0.0.1
+  prefn_marker_kernel(), 2025-Apr-25 11:54:07, Context 1, Stream 7
+    Section: Command line profiler metrics
+    ---------------------------------------------------------------------- --------------- ------------------------------
+    sm__pipe_tensor_active.avg.pct_of_peak_sustained_active                                                       (!) n/a
+    ---------------------------------------------------------------------- --------------- ------------------------------
+
+  matmul_conv_fused_tensor_cores(const float *, const float *, float *, int, int, int, int, int, int), 2025-Apr-25 11:54:07, Context 1, Stream 7
+    Section: Command line profiler metrics
+    ---------------------------------------------------------------------- --------------- ------------------------------
+    sm__pipe_tensor_active.avg.pct_of_peak_sustained_active                                                       (!) n/a
+    ---------------------------------------------------------------------- --------------- ------------------------------
+
+  do_not_remove_this_kernel(), 2025-Apr-25 11:54:07, Context 1, Stream 7
+    Section: Command line profiler metrics
+    ---------------------------------------------------------------------- --------------- ------------------------------
+    sm__pipe_tensor_active.avg.pct_of_peak_sustained_active                                                       (!) n/a
+    ---------------------------------------------------------------------- --------------- ------------------------------
+
+  prefn_marker_kernel(), 2025-Apr-25 11:54:58, Context 1, Stream 7
+    Section: Command line profiler metrics
+    ---------------------------------------------------------------------- --------------- ------------------------------
+    sm__pipe_tensor_active.avg.pct_of_peak_sustained_active                                                       (!) n/a
+    ---------------------------------------------------------------------- --------------- ------------------------------
+
+  matmul_conv_fused_tensor_cores(const float *, const float *, float *, int, int, int, int, int, int), 2025-Apr-25 11:54:58, Context 1, Stream 7
+    Section: Command line profiler metrics
+    ---------------------------------------------------------------------- --------------- ------------------------------
+    sm__pipe_tensor_active.avg.pct_of_peak_sustained_active                                                       (!) n/a
+    ---------------------------------------------------------------------- --------------- ------------------------------
+
+  do_not_remove_this_kernel(), 2025-Apr-25 11:54:58, Context 1, Stream 7
+    Section: Command line profiler metrics
+    ---------------------------------------------------------------------- --------------- ------------------------------
+    sm__pipe_tensor_active.avg.pct_of_peak_sustained_active                                                       (!) n/a
+    ---------------------------------------------------------------------- --------------- ------------------------------
+
